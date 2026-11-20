@@ -195,13 +195,13 @@ export default function App() {
         {page === 'watch' && selected && <section className="watch-page">
           <button className="back-button" onClick={goHome}>← Back to live streams</button>
           <div className="watch-layout">
-            <div className="watch-main"><div className="video-stage"><div><Radio size={38}/><p>Live room</p><button className="primary-button" onClick={() => connectRoom('viewer', selected.room_name)}>Join broadcast</button></div></div><h1>{selected.title}</h1><p className="channel-name">{selected.channels?.title || 'StreamHub channel'}</p>{selected.description && <p className="stream-description">{selected.description}</p>}</div>
+            <div className="watch-main"><div className="video-stage"><div><Radio size={38}/><p>Live room</p><button className="primary-button" onClick={() => {setRoomRole('viewer');setRoomName(selected.room_name);setError('');setShowRoom(true);}}>Join broadcast</button></div></div><h1>{selected.title}</h1><p className="channel-name">{selected.channels?.title || 'StreamHub channel'}</p>{selected.description && <p className="stream-description">{selected.description}</p>}</div>
             <aside className="watch-aside"><h2>Broadcast details</h2><p>This listing is marked live in StreamHub. Join the LiveKit room to watch and participate.</p><button className="primary-button full-width" onClick={() => connectRoom('viewer', selected.room_name)}><Play size={16}/> Join live room</button></aside>
           </div>
         </section>}
 
         {page === 'room' && <section className="room-page">
-          <div className="page-heading"><div><p className="eyebrow">LIVE ROOM</p><h1>{roomName}</h1></div><button className="secondary-button" onClick={() => {setRoomSession(null);goHome();}}>Leave room</button></div>
+          <div className="page-heading"><div><p className="eyebrow">LIVE ROOM</p><h1>{roomName}</h1></div><button className="secondary-button" onClick={async () => {if (roomSession?.role === 'host' && hostStreamId) await supabase.from('streams').update({ status: 'ended' }).eq('id', hostStreamId);setHostStreamId(null);setRoomSession(null);goHome();}}>Leave room</button></div>
           {roomSession ? <div className="livekit-container"><LiveKitRoom token={roomSession.token} serverUrl={roomSession.serverUrl} connect={true} video={roomSession.role === 'host'} audio={roomSession.role === 'host'} onConnected={async () => { if (roomSession.role === 'host' && hostStreamId) { const { error: publishError } = await supabase.from('streams').update({ status: 'live' }).eq('id', hostStreamId); if (publishError) setError('Connected to LiveKit, but the stream could not be published: ' + publishError.message); } }} onDisconnected={async () => { if (roomSession.role === 'host' && hostStreamId) await supabase.from('streams').update({ status: 'ended' }).eq('id', hostStreamId); setHostStreamId(null); setRoomSession(null); goHome(); }}><VideoConference/></LiveKitRoom></div> : <div className="state-panel">You have left this room.</div>}
         </section>}
 

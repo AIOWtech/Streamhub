@@ -7,6 +7,9 @@ const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env
 
 export default function App() {
   const [streams, setStreams] = useState([]);
+  const [following, setFollowing] = useState([]);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [hostStreamId, setHostStreamId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [query, setQuery] = useState('');
@@ -46,6 +49,28 @@ export default function App() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  const loadFollowing = async () => {
+    setFollowLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) { setFollowing([]); setFollowLoading(false); return; }
+    const { data, error: err } = await supabase.from('follows')
+      .select('channel_id,channels(id,title,slug,description)')
+      .eq('follower_id', session.user.id);
+    if (err) setLoadError(err.message);
+    else setFollowing((data || []).map(row => row.channels).filter(Boolean));
+    setFollowLoading(false);
+  };
+
+  useEffect(() => {
+    loadFollowing();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => loadFollowing());
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const followedStreams = useMemo(() => streams.filter(stream =>
+    following.some(channel => channel.id === stream.channel_id)
+  ), [streams, following]);
+
   const filtered = useMemo(() => streams.filter(stream => {
     const channel = stream.channels?.title || '';
     return [stream.title, stream.description, channel].join(' ').toLowerCase().includes(query.toLowerCase());
@@ -58,6 +83,20 @@ export default function App() {
       const { data: { session }, error: authError } = await supabase.auth.getSession();
       if (authError) throw authError;
       if (!session?.access_token) throw new Error('Sign in first using the Account button to join or host a room.');
+      let createdStreamId = null;
+      if (role === 'host') {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: creatorChannel, error: channelError } = await supabase.from('channels')
+          .select('id').eq('owner_id', user.id).maybeSingle();
+        if (channelError) throw channelError;
+        if (!creatorChannel) throw new Error('Create your creator channel first using Account, then start your broadcast.');
+        const { data: stream, error: streamError } = await supabase.from('streams').insert({
+          channel_id: creatorChannel.id, owner_id: user.id, title: targetRoom, description: '',
+          room_name: targetRoom, status: 'scheduled'
+        }).select('id').single();
+        if (streamError) throw streamError;
+        createdStreamId = stream.id;
+      }
       const response = await fetch('/api/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
@@ -65,13 +104,13 @@ export default function App() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not connect to the room.');
-      setRoomSession({ token: result.token, serverUrl: result.serverUrl, role });
+      setHostStreamId(createdStreamId);\n      setRoomSession({ token: result.token, serverUrl: result.serverUrl, role });
       setRoomName(targetRoom);
       setPage('room');
       setSelected(null);
       setShowRoom(false);
     } catch (err) {
-      setError(err.message || 'Unable to connect.');
+      if (role === 'host' && hostStreamId) await supabase.from('streams').update({ status: 'ended' }).eq('id', hostStreamId);\n      setError(err.message || 'Unable to connect.');
     } finally {
       setBusy(false);
     }
@@ -160,12 +199,12 @@ export default function App() {
 
         {page === 'room' && <section className="room-page">
           <div className="page-heading"><div><p className="eyebrow">LIVE ROOM</p><h1>{roomName}</h1></div><button className="secondary-button" onClick={() => {setRoomSession(null);goHome();}}>Leave room</button></div>
-          {roomSession ? <div className="livekit-container"><LiveKitRoom token={roomSession.token} serverUrl={roomSession.serverUrl} connect={true} video={roomSession.role === 'host'} audio={roomSession.role === 'host'} onDisconnected={() => {setRoomSession(null);goHome();}}><VideoConference/></LiveKitRoom></div> : <div className="state-panel">You have left this room.</div>}
+          {roomSession ? <div className="livekit-container"><LiveKitRoom token={roomSession.token} serverUrl={roomSession.serverUrl} connect={true} video={roomSession.role === 'host'} audio={roomSession.role === 'host'} onConnected={async () => { if (roomSession.role === 'host' && hostStreamId) { const { error: publishError } = await supabase.from('streams').update({ status: 'live' }).eq('id', hostStreamId); if (publishError) setError('Connected to LiveKit, but the stream could not be published: ' + publishError.message); } }} onDisconnected={async () => { if (roomSession.role === 'host' && hostStreamId) await supabase.from('streams').update({ status: 'ended' }).eq('id', hostStreamId); setHostStreamId(null); setRoomSession(null); goHome(); }}><VideoConference/></LiveKitRoom></div> : <div className="state-panel">You have left this room.</div>}
         </section>}
 
         {page === 'external' && <section className="external-page"><p className="eyebrow">EXTERNAL PLAYER</p><h1>Watch from another platform</h1><p className="intro">Open an embeddable YouTube or Twitch broadcast.</p>{externalEmbed ? <div className="embed-container"><iframe src={externalEmbed} title="External video player" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen/></div> : <div className="empty-state"><div className="empty-icon"><Tv size={25}/></div><h2>No external stream selected</h2><p>Paste a public YouTube or Twitch URL to open its player here.</p><button className="primary-button" onClick={() => setShowExternal(true)}>Add stream URL</button></div>}</section>}
 
-        {page === 'following' && <section className="empty-state"><div className="empty-icon"><Users size={25}/></div><h2>Followed channels</h2><p>Your followed channel feed is not connected to this view yet. Open Account to manage follows and view available community listings.</p><button className="secondary-button" onClick={() => document.querySelector('.shb-launch')?.click()}>Open account</button></section>}
+        {page === 'following' && <section><div className="page-heading"><div><p className="eyebrow">YOUR FEED</p><h1>Following</h1><p className="intro">Live broadcasts from channels you follow.</p></div><button className="secondary-button" onClick={loadFollowing} disabled={followLoading}><RefreshCw size={16}/> Refresh</button></div>{followLoading ? <div className="state-panel" role="status">Loading followed channels…</div> : following.length === 0 ? <div className="empty-state"><div className="empty-icon"><Users size={25}/></div><h2>No followed channels yet</h2><p>Sign in and follow a creator from the Account panel. Their live broadcasts will appear here.</p><button className="secondary-button" onClick={() => document.querySelector('.shb-launch')?.click()}>Open account</button></div> : followedStreams.length === 0 ? <div className="empty-state"><div className="empty-icon"><Radio size={25}/></div><h2>Your channels are offline</h2><p>You follow {following.length} channel{following.length === 1 ? '' : 's'}. Their broadcasts will appear here when they go live.</p></div> : <div className="stream-grid">{followedStreams.map(stream => <article className="stream-card" key={stream.id}><button className="stream-open" onClick={() => openLiveStream(stream)}><div className="stream-art"><span className="live-label"><i/> LIVE</span><Play size={34}/></div><div className="stream-details"><h2>{stream.title}</h2><p>{stream.channels?.title || 'StreamHub channel'}</p>{stream.description && <small>{stream.description}</small>}</div></button><button className="watch-button" onClick={() => openLiveStream(stream)}>Watch live</button></article>)}</div>}</section>}
       </main>
     </div>
 

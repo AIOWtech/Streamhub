@@ -196,7 +196,7 @@ export default function App() {
           <button className="back-button" onClick={goHome}>← Back to live streams</button>
           <div className="watch-layout">
             <div className="watch-main"><div className="video-stage"><div><Radio size={38}/><p>Live room</p><button className="primary-button" onClick={() => {setRoomRole('viewer');setRoomName(selected.room_name);setError('');setShowRoom(true);}}>Join broadcast</button></div></div><h1>{selected.title}</h1><p className="channel-name">{selected.channels?.title || 'StreamHub channel'}</p>{selected.description && <p className="stream-description">{selected.description}</p>}</div>
-            <aside className="watch-aside"><h2>Broadcast details</h2><p>This listing is marked live in StreamHub. Join the LiveKit room to watch and participate.</p><button className="primary-button full-width" onClick={() => connectRoom('viewer', selected.room_name)}><Play size={16}/> Join live room</button></aside>
+            <aside className="watch-aside"><h2>Broadcast details</h2><p>This listing is marked live in StreamHub. Join the LiveKit room to watch and participate.</p><button className="primary-button full-width" onClick={() => {setRoomRole('viewer');setRoomName(selected.room_name);setError('');setShowRoom(true);}}><Play size={16}/> Join live room</button></aside>
           </div>
         </section>}
 

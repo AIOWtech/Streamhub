@@ -104,13 +104,15 @@ export default function App() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not connect to the room.');
-      setHostStreamId(createdStreamId);\n      setRoomSession({ token: result.token, serverUrl: result.serverUrl, role });
+      setHostStreamId(createdStreamId);
+      setRoomSession({ token: result.token, serverUrl: result.serverUrl, role });
       setRoomName(targetRoom);
       setPage('room');
       setSelected(null);
       setShowRoom(false);
     } catch (err) {
-      if (role === 'host' && hostStreamId) await supabase.from('streams').update({ status: 'ended' }).eq('id', hostStreamId);\n      setError(err.message || 'Unable to connect.');
+      if (role === 'host' && hostStreamId) await supabase.from('streams').update({ status: 'ended' }).eq('id', hostStreamId);
+      setError(err.message || 'Unable to connect.');
     } finally {
       setBusy(false);
     }

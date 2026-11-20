@@ -31,6 +31,21 @@ export default async function handler(req, res) {
     if (!safeName) return res.status(400).json({ error: 'A display name is required.' });
     if (role !== 'host' && role !== 'viewer') return res.status(400).json({ error: 'Role must be host or viewer.' });
 
+    const scopedSupabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    const { data: stream, error: streamError } = await scopedSupabase
+      .from('streams').select('id,owner_id,status').eq('room_name', safeRoom).maybeSingle();
+    if (streamError) return res.status(403).json({ error: 'Unable to verify this stream room.' });
+    if (!stream) return res.status(404).json({ error: 'This room has no published StreamHub listing.' });
+    if (role === 'host' && (stream.owner_id !== user.id || !['scheduled', 'live'].includes(stream.status))) {
+      return res.status(403).json({ error: 'Only the channel owner can broadcast in this room.' });
+    }
+    if (role === 'viewer' && stream.status !== 'live') {
+      return res.status(403).json({ error: 'This broadcast is not live yet.' });
+    }
+
     const token = new AccessToken(apiKey, apiSecret, {
       identity: user.id,
       name: safeName,

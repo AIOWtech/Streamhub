@@ -1,39 +1,176 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { LiveKitRoom, VideoConference } from '@livekit/components-react';
+import { Search, Radio, Compass, Tv, Menu, X, Play, Users, ExternalLink, LogOut, RefreshCw } from 'lucide-react';
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
-import { LiveKitRoom, VideoConference } from '@livekit/components-react';
-import { Search, Radio, Compass, Bookmark, Settings, Plus, Play, Users, Flame, Gamepad2, Music2, Mic2, Clapperboard, X, Send, ExternalLink, Tv, Signal, ChevronRight, Menu } from 'lucide-react';
 
-const streams = [
- {id:'arcade-night',title:'Ranked grind — road to the top 1%',creator:'NovaPlays',category:'Gaming',viewers:'12.8K',tag:'LIVE',color:'violet',image:'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=900&q=85'},
- {id:'studio-sessions',title:'Late night studio sessions 🎹',creator:'Mira Sounds',category:'Music',viewers:'8.2K',tag:'LIVE',color:'pink',image:'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=900&q=85'},
- {id:'design-live',title:'Building a brand from scratch',creator:'The Design Lab',category:'Creative',viewers:'3.4K',tag:'LIVE',color:'orange',image:'https://images.unsplash.com/photo-1558655146-d09347e92766?w=900&q=85'},
- {id:'matchday',title:'Matchday watchalong & reactions',creator:'Touchline',category:'Sports',viewers:'21.1K',tag:'LIVE',color:'green',image:'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=900&q=85'},
- {id:'talk-tech',title:'AI, startups & the future of work',creator:'BuildWithTobi',category:'Talk',viewers:'1.9K',tag:'LIVE',color:'blue',image:'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=900&q=85'},
- {id:'chill',title:'Lo-fi beats to focus and create',creator:'cloud.fm',category:'Music',viewers:'5.6K',tag:'LIVE',color:'cyan',image:'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=85'}
-];
-const categories=[['For you',Compass],['Gaming',Gamepad2],['Music',Music2],['Sports',Flame],['Creative',Clapperboard],['Talk shows',Mic2]];
-function App(){
- const [page,setPage]=useState('discover'),[category,setCategory]=useState('For you'),[query,setQuery]=useState(''),[selected,setSelected]=useState(null),[showGoLive,setShowGoLive]=useState(false),[showExternal,setShowExternal]=useState(false),[externalUrl,setExternalUrl]=useState(''),[name,setName]=useState('Guest'),[room,setRoom]=useState('streamhub-live'),[role,setRole]=useState('host'),[session,setSession]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[chat,setChat]=useState(''),[chatItems,setChatItems]=useState([{name:'StreamHub',message:'Welcome to the chat 👋'}]),[mobileNav,setMobileNav]=useState(false);
- const filtered=useMemo(()=>streams.filter(s=>(category==='For you'||s.category===category)&&[s.title,s.creator,s.category].join(' ').toLowerCase().includes(query.toLowerCase())),[category,query]);
- const startSession=async(r,streamRole)=>{setBusy(true);setError('');try{const {data:{session:authSession},error:authError}=await supabase.auth.getSession();if(authError)throw authError;if(!authSession?.access_token)throw new Error('Please sign in using Account & community before starting or joining a live stream.');const response=await fetch('/api/token',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${authSession.access_token}`},body:JSON.stringify({roomName:r,participantName:name||'Guest',role:streamRole})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Unable to connect');setSession({token:data.token,serverUrl:data.serverUrl,role:streamRole});setRoom(r);setPage('studio');}catch(e){setError(e.message||'Unable to connect to the live room.')}finally{setBusy(false)}};
- const sendChat=()=>{if(!chat.trim())return;setChatItems(v=>[...v,{name:name||'Guest',message:chat.trim()}]);setChat('')};
- const embedUrl=(url)=>{try{const u=new URL(url);if(u.hostname.includes('youtube.com')){const id=u.searchParams.get('v')||u.pathname.split('/').pop();return 'https://www.youtube.com/embed/'+id+'?autoplay=1'}if(u.hostname==='youtu.be')return 'https://www.youtube.com/embed/'+u.pathname.slice(1);if(u.hostname.includes('twitch.tv')){const channel=u.pathname.split('/').filter(Boolean)[0];return 'https://player.twitch.tv/?channel='+channel+'&parent='+location.hostname+'&muted=false'}return null}catch{return null}};
- const [externalEmbed,setExternalEmbed]=useState('');
- const watchExternal=()=>{const u=embedUrl(externalUrl);if(!u){setError('Please enter a valid YouTube or Twitch channel/video URL.');return}setExternalEmbed(u);setShowExternal(false);setPage('external');setError('')};
- return <div className="app"><header className="topbar"><button className="mobile-menu icon-btn" onClick={()=>setMobileNav(!mobileNav)}><Menu/></button><button className="brand" onClick={()=>{setPage('discover');setSelected(null)}}><span className="brand-mark"><Radio size={20}/></span><span>stream<span className="brand-accent">hub</span></span></button><div className="search"><Search size={18}/><input placeholder="Search streams, creators, categories..." value={query} onChange={e=>setQuery(e.target.value)}/><kbd>⌘ K</kbd></div><div className="top-actions"><button className="outline-btn" onClick={()=>setShowExternal(true)}><Tv size={16}/> Add a stream</button><button className="primary-btn" onClick={()=>setShowGoLive(true)}><Radio size={16}/> Go live</button><div className="avatar">G</div></div></header>
- <div className="layout"><aside className={mobileNav?'sidebar open':'sidebar'}><div className="side-label">MENU</div><button className={page==='discover'?'nav-item active':'nav-item'} onClick={()=>{setPage('discover');setSelected(null)}}><Compass/> Discover</button><button className="nav-item" onClick={()=>setPage('following')}><Bookmark/> Following</button><button className="nav-item" onClick={()=>setPage('external')}><Tv/> External streams</button><div className="side-divider"/><div className="side-label">CATEGORIES</div>{categories.map(([label,Icon])=><button key={label} className={category===label?'nav-item active':'nav-item'} onClick={()=>{setCategory(label);setPage('discover');setMobileNav(false)}}><Icon/> {label}</button>)}<div className="side-card"><div className="side-card-icon"><Radio/></div><strong>Your channel starts here.</strong><p>Share your world. Build your community.</p><button onClick={()=>setShowGoLive(true)}>Create a stream <ChevronRight size={15}/></button></div><div className="side-bottom"><button className="nav-item"><Settings/> Settings</button><span>© 2026 StreamHub</span></div></aside>
- <main className="main">{page==='discover'&&<><section className="welcome"><div><div className="eyebrow"><span className="pulse"/> THE WORLD IS WATCHING</div><h1>Live is better<br/><span>together.</span></h1><p>Discover creators, catch the moment, and find your people.</p><div className="welcome-actions"><button className="primary-btn large" onClick={()=>setShowGoLive(true)}><Radio size={17}/> Start streaming</button><button className="ghost-btn large" onClick={()=>setCategory('Gaming')}>Explore channels <ChevronRight size={16}/></button></div></div><div className="hero-art"><div className="hero-orbit orbit-one"/><div className="hero-orbit orbit-two"/><div className="hero-screen"><div className="screen-top"><span className="live-dot"/> LIVE NOW <span>• 12.8K watching</span></div><img src={streams[0].image}/><div className="screen-bottom"><span>NovaPlays</span><span>✦ STREAMHUB</span></div></div><div className="float-tag tag-top"><span className="mini-avatar purple">N</span><span><b>NovaPlays</b><small>is live now</small></span></div><div className="float-tag tag-bottom"><span className="mini-avatar coral">M</span><span><b>Mira Sounds</b><small>8.2K watching</small></span><span className="tiny-bars">▂▅▃▇▅</span></div></div></section>
- <section className="section"><div className="section-heading"><div><div className="eyebrow muted">FIND YOUR FREQUENCY</div><h2>Explore live</h2></div><button className="text-btn" onClick={()=>setCategory('For you')}>View all <ChevronRight size={16}/></button></div><div className="chips">{['For you','Gaming','Music','Sports','Creative','Talk'].map(c=><button key={c} className={category===c?'chip selected':'chip'} onClick={()=>setCategory(c==='Talk'?'Talk':c)}>{c}</button>)}</div><div className="stream-grid">{filtered.map(s=><article className="stream-card" key={s.id} onClick={()=>{setSelected(s);setPage('watch')}}><div className="thumbnail"><img src={s.image}/><span className="live-badge"><i/> LIVE</span><span className="viewer-badge"><Users size={12}/> {s.viewers}</span><div className="play-overlay"><Play fill="white"/></div></div><div className="stream-info"><div className={'creator-avatar '+s.color}>{s.creator[0]}</div><div className="stream-copy"><h3>{s.title}</h3><p>{s.creator}</p><span>{s.category}</span></div><button className="more-btn" onClick={e=>e.stopPropagation()}>•••</button></div></article>)}</div>{filtered.length===0&&<div className="empty">No streams found. Try another search or category.</div>}</section>
- <section className="bottom-banner"><div className="banner-icon"><Signal/></div><div><h3>Your audience is out there.</h3><p>Go live and turn your next idea into a shared moment.</p></div><button className="primary-btn" onClick={()=>setShowGoLive(true)}>Launch your channel <ChevronRight size={16}/></button></section></>}
- {page==='watch'&&selected&&<section className="watch-page"><button className="back-link" onClick={()=>setPage('discover')}>← Back to discover</button><div className="watch-grid"><div><div className="video-placeholder"><img src={selected.image}/><div className="video-center"><Play fill="white" size={44}/><span>Stream preview</span></div><span className="live-badge"><i/> LIVE</span></div><h2>{selected.title}</h2><p className="muted-text">{selected.creator} · {selected.viewers} watching · {selected.category}</p><div className="notice">This is a featured discovery preview. Join a creator's LiveKit room or add a YouTube/Twitch stream to watch a live broadcast.</div></div><div className="chat-panel"><h3>Live chat <span className="live-dot"/></h3><div className="chat-messages">{chatItems.map((m,i)=><p key={i}><b>{m.name}</b> {m.message}</p>)}</div><div className="chat-compose"><input value={chat} onChange={e=>setChat(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()} placeholder="Say something..."/><button onClick={sendChat}><Send size={16}/></button></div></div></div></section>}
- {page==='external'&&<section className="external-page"><div className="eyebrow muted">WATCH FROM ANYWHERE</div><h1>External <span>streams.</span></h1><p>Bring your favourite YouTube Live or Twitch broadcast into StreamHub.</p>{externalEmbed?<div className="embed-frame"><iframe src={externalEmbed} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen title="External live stream"/></div>:<div className="external-empty"><Tv size={40}/><h3>Your next stream is one link away.</h3><button className="primary-btn" onClick={()=>setShowExternal(true)}>Add YouTube or Twitch URL</button></div>}</section>}
- {page==='studio'&&<section className="studio-page"><div className="section-heading"><div><div className="eyebrow muted">CREATOR STUDIO</div><h2>{session?'You are connected':'Studio setup'}</h2></div><button className="outline-btn" onClick={()=>{setSession(null);setPage('discover')}}>Leave studio</button></div>{session?<div className="studio-room"><LiveKitRoom token={session.token} serverUrl={session.serverUrl} connect={true} video={session.role==='host'} audio={session.role==='host'} onDisconnected={()=>setSession(null)}><VideoConference/></LiveKitRoom></div>:<div className="setup-card"><Radio size={36}/><h3>Ready when you are.</h3><p>Connect to a LiveKit room to broadcast or watch a StreamHub channel.</p><button className="primary-btn" onClick={()=>setShowGoLive(true)}>Set up a stream</button></div>}</section>}
- {page==='following'&&<section className="external-page"><div className="eyebrow muted">YOUR COMMUNITY</div><h1>Following.</h1><p>Channels you follow will show up here. Discover creators and come back for their next live moment.</p><button className="primary-btn" onClick={()=>setPage('discover')}>Discover creators</button></section>}
- </main></div>
- {showGoLive&&<div className="modal-backdrop" onClick={()=>setShowGoLive(false)}><div className="modal" onClick={e=>e.stopPropagation()}><button className="close-btn" onClick={()=>setShowGoLive(false)}><X/></button><div className="modal-icon"><Radio/></div><div className="eyebrow muted">CREATOR STUDIO</div><h2>Go live on StreamHub</h2><p>Choose a display name and room. Add your LiveKit credentials in Vercel to enable broadcasting.</p><label>Display name</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Your creator name"/><label>Stream room</label><input value={room} onChange={e=>setRoom(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-'))} placeholder="my-live-room"/><div className="role-select"><button className={role==='host'?'role active':'role'} onClick={()=>setRole('host')}><Radio/> Broadcast</button><button className={role==='viewer'?'role active':'role'} onClick={()=>setRole('viewer')}><Play/> Join as viewer</button></div>{error&&<div className="error-msg">{error}</div>}<button className="primary-btn full" disabled={busy||!room.trim()||!name.trim()} onClick={()=>{startSession(room,role);setShowGoLive(false)}}>{busy?'Connecting...':role==='host'?'Start broadcasting':'Join live room'} <ChevronRight size={16}/></button><small className="modal-foot">Secure session tokens are generated server-side.</small></div></div>}
- {showExternal&&<div className="modal-backdrop" onClick={()=>setShowExternal(false)}><div className="modal" onClick={e=>e.stopPropagation()}><button className="close-btn" onClick={()=>setShowExternal(false)}><X/></button><div className="modal-icon"><Tv/></div><div className="eyebrow muted">EXTERNAL PLAYER</div><h2>Add a live stream</h2><p>Paste a YouTube video/live URL or a Twitch channel URL.</p><label>Stream URL</label><input value={externalUrl} onChange={e=>setExternalUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..."/>{error&&<div className="error-msg">{error}</div>}<button className="primary-btn full" onClick={watchExternal}>Open stream <ExternalLink size={16}/></button></div></div>}
- </div>
+export default function App() {
+  const [streams, setStreams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState('discover');
+  const [selected, setSelected] = useState(null);
+  const [roomSession, setRoomSession] = useState(null);
+  const [roomName, setRoomName] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [roomRole, setRoomRole] = useState('viewer');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [showRoom, setShowRoom] = useState(false);
+  const [showExternal, setShowExternal] = useState(false);
+  const [externalUrl, setExternalUrl] = useState('');
+  const [externalEmbed, setExternalEmbed] = useState('');
+  const [mobileNav, setMobileNav] = useState(false);
+
+  const loadStreams = async () => {
+    setLoading(true);
+    setLoadError('');
+    const { data, error: err } = await supabase
+      .from('streams')
+      .select('id,title,description,room_name,status,created_at,channels(title,slug)')
+      .eq('status', 'live')
+      .order('created_at', { ascending: false })
+      .limit(60);
+    if (err) setLoadError(err.message);
+    else setStreams(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadStreams();
+    const channel = supabase.channel('streamhub-live-streams')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'streams' }, loadStreams)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  const filtered = useMemo(() => streams.filter(stream => {
+    const channel = stream.channels?.title || '';
+    return [stream.title, stream.description, channel].join(' ').toLowerCase().includes(query.toLowerCase());
+  }), [streams, query]);
+
+  const connectRoom = async (role, targetRoom) => {
+    setBusy(true);
+    setError('');
+    try {
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      if (authError) throw authError;
+      if (!session?.access_token) throw new Error('Sign in first using the Account button to join or host a room.');
+      const response = await fetch('/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ roomName: targetRoom, participantName: displayName.trim(), role })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not connect to the room.');
+      setRoomSession({ token: result.token, serverUrl: result.serverUrl, role });
+      setRoomName(targetRoom);
+      setPage('room');
+      setSelected(null);
+      setShowRoom(false);
+    } catch (err) {
+      setError(err.message || 'Unable to connect.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openLiveStream = stream => {
+    setSelected(stream);
+    setPage('watch');
+    setMobileNav(false);
+  };
+
+  const parseExternalUrl = value => {
+    try {
+      const url = new URL(value);
+      if (url.hostname === 'youtu.be') return 'https://www.youtube-nocookie.com/embed/' + url.pathname.slice(1);
+      if (url.hostname.endsWith('youtube.com')) {
+        const id = url.searchParams.get('v') || url.pathname.split('/').filter(Boolean).pop();
+        if (id && id !== 'live') return 'https://www.youtube-nocookie.com/embed/' + id;
+        const liveId = url.pathname.match(/live\/([^/?]+)/)?.[1];
+        if (liveId) return 'https://www.youtube-nocookie.com/embed/' + liveId;
+      }
+      if (url.hostname.endsWith('twitch.tv')) {
+        const channel = url.pathname.split('/').filter(Boolean)[0];
+        if (channel) return 'https://player.twitch.tv/?channel=' + encodeURIComponent(channel) + '&parent=' + window.location.hostname;
+      }
+    } catch {}
+    return '';
+  };
+
+  const openExternal = () => {
+    const embed = parseExternalUrl(externalUrl.trim());
+    if (!embed) { setError('Enter a valid YouTube or Twitch URL.'); return; }
+    setExternalEmbed(embed);
+    setPage('external');
+    setShowExternal(false);
+    setError('');
+  };
+
+  const goHome = () => { setPage('discover'); setSelected(null); setRoomSession(null); };
+
+  return <div className="app-shell">
+    <header className="topbar">
+      <button className="icon-button mobile-menu" aria-label="Open navigation" aria-expanded={mobileNav} onClick={() => setMobileNav(v => !v)}><Menu /></button>
+      <button className="brand" onClick={goHome} aria-label="StreamHub home"><span className="brand-symbol"><Radio size={19}/></span><span>Stream<span>Hub</span></span></button>
+      <label className="search-box"><Search size={18}/><input aria-label="Search live streams" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search live streams and channels"/></label>
+      <div className="top-actions">
+        <button className="secondary-button" onClick={() => setShowExternal(true)}><Tv size={16}/> Watch external</button>
+        <button className="primary-button" onClick={() => {setRoomRole('host');setRoomName('');setError('');setShowRoom(true);}}><Radio size={16}/> Go live</button>
+        <button className="account-button" onClick={() => document.querySelector('.shb-launch')?.click()}>Account</button>
+      </div>
+    </header>
+
+    <div className="app-layout">
+      <aside className={mobileNav ? 'sidebar sidebar-open' : 'sidebar'} aria-label="Main navigation">
+        <button className={page === 'discover' ? 'side-link active' : 'side-link'} onClick={goHome}><Compass size={18}/> Discover</button>
+        <button className={page === 'following' ? 'side-link active' : 'side-link'} onClick={() => {setPage('following');setMobileNav(false);}}><Users size={18}/> Following</button>
+        <button className={page === 'external' ? 'side-link active' : 'side-link'} onClick={() => {setPage('external');setMobileNav(false);}}><Tv size={18}/> External player</button>
+        <div className="sidebar-note"><strong>StreamHub</strong><p>Live broadcasts from channels on this platform appear here when their status is live.</p></div>
+      </aside>
+
+      <main className="main-content">
+        {page === 'discover' && <>
+          <section className="page-heading">
+            <div><p className="eyebrow">DISCOVER</p><h1>Live now</h1><p className="intro">Find a broadcast or start your own room.</p></div>
+            <button className="secondary-button refresh-button" onClick={loadStreams} disabled={loading}><RefreshCw size={16}/> Refresh</button>
+          </section>
+          {loading ? <div className="state-panel" role="status">Loading live broadcasts…</div>
+            : loadError ? <div className="state-panel error-panel"><p>Live broadcasts could not be loaded.</p><small>{loadError}</small><button className="secondary-button" onClick={loadStreams}>Try again</button></div>
+            : filtered.length === 0 ? <div className="empty-state"><div className="empty-icon"><Radio size={25}/></div><h2>{query ? 'No matching live streams' : 'No one is live right now'}</h2><p>{query ? 'Try a different search.' : 'When a creator starts a published stream, it will appear here. You can also start a room yourself.'}</p><button className="primary-button" onClick={() => {setRoomRole('host');setRoomName('');setError('');setShowRoom(true);}}><Radio size={16}/> Start a live room</button></div>
+            : <div className="stream-grid">{filtered.map(stream => <article className="stream-card" key={stream.id}>
+              <button className="stream-open" onClick={() => openLiveStream(stream)} aria-label={'Watch ' + stream.title}>
+                <div className="stream-art"><span className="live-label"><i/> LIVE</span><Play size={34}/></div>
+                <div className="stream-details"><h2>{stream.title}</h2><p>{stream.channels?.title || 'StreamHub channel'}</p>{stream.description && <small>{stream.description}</small>}</div>
+              </button>
+              <button className="watch-button" onClick={() => openLiveStream(stream)}>Watch live</button>
+            </article>)}</div>}
+        </>}
+
+        {page === 'watch' && selected && <section className="watch-page">
+          <button className="back-button" onClick={goHome}>← Back to live streams</button>
+          <div className="watch-layout">
+            <div className="watch-main"><div className="video-stage"><div><Radio size={38}/><p>Live room</p><button className="primary-button" onClick={() => connectRoom('viewer', selected.room_name)}>Join broadcast</button></div></div><h1>{selected.title}</h1><p className="channel-name">{selected.channels?.title || 'StreamHub channel'}</p>{selected.description && <p className="stream-description">{selected.description}</p>}</div>
+            <aside className="watch-aside"><h2>Broadcast details</h2><p>This listing is marked live in StreamHub. Join the LiveKit room to watch and participate.</p><button className="primary-button full-width" onClick={() => connectRoom('viewer', selected.room_name)}><Play size={16}/> Join live room</button></aside>
+          </div>
+        </section>}
+
+        {page === 'room' && <section className="room-page">
+          <div className="page-heading"><div><p className="eyebrow">LIVE ROOM</p><h1>{roomName}</h1></div><button className="secondary-button" onClick={() => {setRoomSession(null);goHome();}}>Leave room</button></div>
+          {roomSession ? <div className="livekit-container"><LiveKitRoom token={roomSession.token} serverUrl={roomSession.serverUrl} connect={true} video={roomSession.role === 'host'} audio={roomSession.role === 'host'} onDisconnected={() => {setRoomSession(null);goHome();}}><VideoConference/></LiveKitRoom></div> : <div className="state-panel">You have left this room.</div>}
+        </section>}
+
+        {page === 'external' && <section className="external-page"><p className="eyebrow">EXTERNAL PLAYER</p><h1>Watch from another platform</h1><p className="intro">Open an embeddable YouTube or Twitch broadcast.</p>{externalEmbed ? <div className="embed-container"><iframe src={externalEmbed} title="External video player" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen/></div> : <div className="empty-state"><div className="empty-icon"><Tv size={25}/></div><h2>No external stream selected</h2><p>Paste a public YouTube or Twitch URL to open its player here.</p><button className="primary-button" onClick={() => setShowExternal(true)}>Add stream URL</button></div>}</section>}
+
+        {page === 'following' && <section className="empty-state"><div className="empty-icon"><Users size={25}/></div><h2>Followed channels</h2><p>Your followed channel feed is not connected to this view yet. Open Account to manage follows and view available community listings.</p><button className="secondary-button" onClick={() => document.querySelector('.shb-launch')?.click()}>Open account</button></section>}
+      </main>
+    </div>
+
+    {showRoom && <div className="modal-backdrop" onMouseDown={e => {if(e.target === e.currentTarget)setShowRoom(false);}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="room-title"><button className="modal-close icon-button" aria-label="Close" onClick={() => setShowRoom(false)}><X/></button><p className="eyebrow">LIVEKIT ROOM</p><h2 id="room-title">Start or join a room</h2><p>Use a room name shared by the host. Hosting requires a signed-in account.</p><label htmlFor="display-name">Display name</label><input id="display-name" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your name" autoComplete="name"/><label htmlFor="room-name">Room name</label><input id="room-name" value={roomName} onChange={e => setRoomName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-'))} placeholder="my-live-room"/><div className="role-switch"><button className={roomRole === 'host' ? 'selected' : ''} onClick={() => setRoomRole('host')}>Broadcast</button><button className={roomRole === 'viewer' ? 'selected' : ''} onClick={() => setRoomRole('viewer')}>Join as viewer</button></div>{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-button full-width" disabled={busy || !roomName.trim() || !displayName.trim()} onClick={() => connectRoom(roomRole, roomName.trim())}>{busy ? 'Connecting…' : roomRole === 'host' ? 'Start broadcasting' : 'Join room'}</button></section></div>}
+
+    {showExternal && <div className="modal-backdrop" onMouseDown={e => {if(e.target === e.currentTarget)setShowExternal(false);}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="external-title"><button className="modal-close icon-button" aria-label="Close" onClick={() => setShowExternal(false)}><X/></button><p className="eyebrow">EXTERNAL PLAYER</p><h2 id="external-title">Add a stream URL</h2><p>Paste a YouTube video/live URL or Twitch channel URL.</p><label htmlFor="external-url">Stream URL</label><input id="external-url" type="url" value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://…"/>{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-button full-width" onClick={openExternal}><ExternalLink size={16}/> Open player</button></section></div>}
+  </div>;
 }
-export default App;

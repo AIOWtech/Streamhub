@@ -18,6 +18,7 @@ export default function App() {
   const [roomSession, setRoomSession] = useState(null);
   const [roomName, setRoomName] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [broadcastTitle, setBroadcastTitle] = useState('');
   const [roomRole, setRoomRole] = useState('viewer');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -79,11 +80,11 @@ export default function App() {
   const connectRoom = async (role, targetRoom) => {
     setBusy(true);
     setError('');
+    let createdStreamId = null;
     try {
       const { data: { session }, error: authError } = await supabase.auth.getSession();
       if (authError) throw authError;
       if (!session?.access_token) throw new Error('Sign in first using the Account button to join or host a room.');
-      let createdStreamId = null;
       if (role === 'host') {
         const { data: { user } } = await supabase.auth.getUser();
         const { data: creatorChannel, error: channelError } = await supabase.from('channels')
@@ -91,7 +92,7 @@ export default function App() {
         if (channelError) throw channelError;
         if (!creatorChannel) throw new Error('Create your creator channel first using Account, then start your broadcast.');
         const { data: stream, error: streamError } = await supabase.from('streams').insert({
-          channel_id: creatorChannel.id, owner_id: user.id, title: targetRoom, description: '',
+          channel_id: creatorChannel.id, owner_id: user.id, title: broadcastTitle.trim() || targetRoom, description: '',
           room_name: targetRoom, status: 'scheduled'
         }).select('id').single();
         if (streamError) throw streamError;
@@ -111,7 +112,7 @@ export default function App() {
       setSelected(null);
       setShowRoom(false);
     } catch (err) {
-      if (role === 'host' && hostStreamId) await supabase.from('streams').update({ status: 'ended' }).eq('id', hostStreamId);
+      if (role === 'host' && createdStreamId) await supabase.from('streams').update({ status: 'ended' }).eq('id', createdStreamId);
       setError(err.message || 'Unable to connect.');
     } finally {
       setBusy(false);
@@ -210,7 +211,7 @@ export default function App() {
       </main>
     </div>
 
-    {showRoom && <div className="modal-backdrop" onMouseDown={e => {if(e.target === e.currentTarget)setShowRoom(false);}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="room-title"><button className="modal-close icon-button" aria-label="Close" onClick={() => setShowRoom(false)}><X/></button><p className="eyebrow">LIVEKIT ROOM</p><h2 id="room-title">Start or join a room</h2><p>Use a room name shared by the host. Hosting requires a signed-in account.</p><label htmlFor="display-name">Display name</label><input id="display-name" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your name" autoComplete="name"/><label htmlFor="room-name">Room name</label><input id="room-name" value={roomName} onChange={e => setRoomName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-'))} placeholder="my-live-room"/><div className="role-switch"><button className={roomRole === 'host' ? 'selected' : ''} onClick={() => setRoomRole('host')}>Broadcast</button><button className={roomRole === 'viewer' ? 'selected' : ''} onClick={() => setRoomRole('viewer')}>Join as viewer</button></div>{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-button full-width" disabled={busy || !roomName.trim() || !displayName.trim()} onClick={() => connectRoom(roomRole, roomName.trim())}>{busy ? 'Connecting…' : roomRole === 'host' ? 'Start broadcasting' : 'Join room'}</button></section></div>}
+    {showRoom && <div className="modal-backdrop" onMouseDown={e => {if(e.target === e.currentTarget)setShowRoom(false);}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="room-title"><button className="modal-close icon-button" aria-label="Close" onClick={() => setShowRoom(false)}><X/></button><p className="eyebrow">LIVEKIT ROOM</p><h2 id="room-title">Start or join a room</h2><p>Use a room name shared by the host. Hosting requires a signed-in account.</p><label htmlFor="broadcast-title">Broadcast title</label><input id="broadcast-title" value={broadcastTitle} onChange={e => setBroadcastTitle(e.target.value)} placeholder="What are you streaming?"/><label htmlFor="display-name">Display name</label><input id="display-name" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your name" autoComplete="name"/><label htmlFor="room-name">Room name</label><input id="room-name" value={roomName} onChange={e => setRoomName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'-'))} placeholder="my-live-room"/><div className="role-switch"><button className={roomRole === 'host' ? 'selected' : ''} onClick={() => setRoomRole('host')}>Broadcast</button><button className={roomRole === 'viewer' ? 'selected' : ''} onClick={() => setRoomRole('viewer')}>Join as viewer</button></div>{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-button full-width" disabled={busy || !roomName.trim() || !displayName.trim() || (roomRole === 'host' && !broadcastTitle.trim())} onClick={() => connectRoom(roomRole, roomName.trim())}>{busy ? 'Connecting…' : roomRole === 'host' ? 'Start broadcasting' : 'Join room'}</button></section></div>}
 
     {showExternal && <div className="modal-backdrop" onMouseDown={e => {if(e.target === e.currentTarget)setShowExternal(false);}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="external-title"><button className="modal-close icon-button" aria-label="Close" onClick={() => setShowExternal(false)}><X/></button><p className="eyebrow">EXTERNAL PLAYER</p><h2 id="external-title">Add a stream URL</h2><p>Paste a YouTube video/live URL or Twitch channel URL.</p><label htmlFor="external-url">Stream URL</label><input id="external-url" type="url" value={externalUrl} onChange={e => setExternalUrl(e.target.value)} placeholder="https://…"/>{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-button full-width" onClick={openExternal}><ExternalLink size={16}/> Open player</button></section></div>}
   </div>;
